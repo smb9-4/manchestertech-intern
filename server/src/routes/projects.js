@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Project, Task } = require('../models');
+const { Project, Task, Team } = require('../models');
 const { allow, isAdmin, teamScope } = require('../middleware/auth');
 const { notify, teamIds } = require('../services/notify');
 
@@ -18,8 +18,12 @@ router.get('/', async (req, res) => {
 
 router.post('/', allow('admin'), async (req, res) => {
   const { name, description, team, due } = req.body || {};
-  if (!name || !team) return res.status(400).json({ error: 'Name and team are required' });
-  const p = await Project.create({ name, description, team, due });
+  const cleanName = String(name || '').trim();
+  if (!cleanName || !team) return res.status(400).json({ error: 'Name and team are required' });
+  const dueDate = due ? new Date(due) : undefined;
+  if (due && Number.isNaN(dueDate.getTime())) return res.status(400).json({ error: 'Enter a valid due date' });
+  if (!await Team.exists({ _id: team })) return res.status(400).json({ error: 'Selected team was not found' });
+  const p = await Project.create({ name: cleanName, description, team, due: dueDate });
   await notify(await teamIds(team), { icon: '📁', title: 'New project', body: name, link: '/projects' });
   res.status(201).json(await p.populate('team', 'name color'));
 });

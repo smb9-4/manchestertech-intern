@@ -16,8 +16,12 @@ export const AttPill = ({ s }) => {
   if (!s) return <span className="pill p-grey">● Not in</span>;
   return { present: <span className="pill p-green">● Present</span>, late: <span className="pill p-amber">● Late</span>, absent: <span className="pill p-red">● Absent</span> }[s];
 };
-export const Stat = ({ k, v, d, icon, bg }) => (
-  <div className="card stat"><div className="icon"><Icon e={icon} size={20} /></div><div className="k">{k}</div><div className="v">{v}</div><div className="d">{d}</div></div>
+export const Stat = ({ k, v, d, icon, bg, onClick }) => (
+  <div className={'card stat' + (onClick ? ' stat-clickable' : '')} onClick={onClick}
+    role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+    onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}>
+    <div className="icon"><Icon e={icon} size={20} /></div><div className="k">{k}</div><div className="v">{v}</div><div className="d">{d}</div>
+  </div>
 );
 export const Bar = ({ pct }) => <div className="bar"><i style={{ width: Math.max(0, Math.min(100, pct)) + '%' }} /></div>;
 export const Empty = ({ children }) => <div className="empty">{children}</div>;

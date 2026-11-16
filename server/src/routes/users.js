@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const { User, Team } = require('../models');
 const { allow, isAdmin, teamScope } = require('../middleware/auth');
 const { notify } = require('../services/notify');
@@ -26,12 +27,16 @@ router.get('/', async (req, res) => {
 // Admin: register an intern (returns a temporary password to share)
 router.post('/', allow('admin'), async (req, res) => {
   const { name, email, college, phone, team, role } = req.body || {};
-  if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
-  if (await User.findOne({ email: email.toLowerCase().trim() })) return res.status(400).json({ error: 'That email is already registered' });
+  const cleanName = String(name || '').trim();
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanName || !cleanEmail) return res.status(400).json({ error: 'Name and email are required' });
+  if (!cleanEmail.includes('@')) return res.status(400).json({ error: 'Enter a valid email address' });
+  if (team && (!mongoose.isValidObjectId(team) || !await Team.exists({ _id: team }))) return res.status(400).json({ error: 'Selected team was not found' });
+  if (await User.findOne({ email: cleanEmail })) return res.status(400).json({ error: 'That email is already registered' });
   let newRole = ['intern', 'admin'].includes(role) ? role : 'intern';
   if (newRole === 'admin' && req.user.role !== 'superadmin') newRole = 'intern';
   const tempPassword = crypto.randomBytes(5).toString('hex');
-  const user = await User.create({ name, email, college, phone, team: team || null, role: newRole, password: tempPassword, mustChangePassword: true });
+  const user = await User.create({ name: cleanName, email: cleanEmail, college, phone, team: team || null, role: newRole, password: tempPassword, mustChangePassword: true });
   await notify([user._id], { icon: '👋', title: 'Welcome to InternHub', body: 'Please change your password from your profile.' });
   res.status(201).json({ user: await user.populate('team', 'name color'), tempPassword });
 });

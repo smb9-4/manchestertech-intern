@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 let io = null;
 const { User, Team, Message } = require('../models');
 const { canUseChannel } = require('./channels');
+const { notifyChat } = require('./notify');
 
 function init(server, corsOrigin) {
   const { Server } = require('socket.io');
@@ -35,6 +36,7 @@ function init(server, corsOrigin) {
         const msg = await Message.create({ channel, from: u._id, text });
         await msg.populate('from', 'name role');
         broadcastMessage(msg);
+        await notifyChat(channel, fresh, text);
         ack?.({ ok: true });
       } catch (e) { ack?.({ error: e.message }); }
     });

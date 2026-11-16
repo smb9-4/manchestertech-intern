@@ -1,24 +1,34 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, download } from '../api';
 import { useApp } from '../context';
-import { useApi, Loading, Modal, Avatar, PrioPill, STATUS, DueText } from '../components/ui';
+import { useApi, Loading, Modal, Avatar, PrioPill, STATUS, DueText, Bar } from '../components/ui';
 import TaskComments from '../components/TaskComments';
+import TaskTimeline from '../components/TaskTimeline';
 
 const COLS = ['todo', 'inprogress', 'submitted', 'rejected', 'approved'];
 
 export default function Tasks() {
   const { isIntern, user, toast } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, reload] = useApi('/tasks');
   const [counts, reloadCounts] = useApi('/task-comments/counts');
   const [projects] = useApi('/projects');
   const [users] = useApi(isIntern ? null : '/users');
+  const [teams] = useApi(isIntern ? null : '/teams');
+  const [report] = useApi(isIntern ? null : '/reports');
   const [modal, setModal] = useState(null);
-  const [who, setWho] = useState('');
-  if (!tasks || !projects || (!isIntern && !users)) return <Loading />;
+  const teamId = searchParams.get('team');
+  const submittedOnly = searchParams.get('status') === 'submitted';
+  if (!tasks || !projects || (!isIntern && (!users || !teams || !report))) return <Loading />;
 
   const set = async (t, body, msg) => { try { await api('/tasks/' + t._id, { method: 'PATCH', body }); reload(); toast(msg); } catch (e) { toast(e.message); } };
-  const create = async (fd) => { await api('/tasks', { method: 'POST', body: Object.fromEntries(fd) }); setModal(null); reload(); toast('Task assigned'); };
+  const create = async (fd) => {
+    const body = Object.fromEntries(fd);
+    if (!body.due) delete body.due;
+    await api('/tasks', { method: 'POST', body });
+    setModal(null); reload(); toast('Task assigned');
+  };
   const submit = async (fd) => {
     let file = null;
     const f = fd.get('file');
@@ -30,13 +40,83 @@ export default function Tasks() {
     setModal(null); reload(); toast('Submitted for review');
   };
   const review = async (fd) => { await api('/tasks/' + modal.task._id, { method: 'PATCH', body: { status: modal.kind, feedback: fd.get('feedback') } }); setModal(null); reload(); toast(modal.kind === 'approved' ? 'Approved ✓' : 'Sent back'); };
-  const shown = tasks.filter((t) => !who || t.assignee?._id === who);
+  const teamRows = isIntern ? [] : teams.map((team) => {
+    const teamTasks = tasks.filter((task) => String(task.team) === team._id);
+    const done = teamTasks.filter((task) => task.status === 'approved').length;
+    const members = report.rows.filter((row) => row.user.team?._id === team._id);
+    const teamProjects = projects.filter((project) => project.team?._id === team._id);
+    return { team, teamTasks, done, members, projects: teamProjects, progress: teamTasks.length ? Math.round((done / teamTasks.length) * 100) : 0 };
+  });
+  const selectedTeam = teamRows.find((row) => row.team._id === teamId);
+  const chooseTeam = (id) => setSearchParams({ team: id });
+  const clearTeam = () => setSearchParams(submittedOnly ? { status: 'submitted' } : {});
+  const shownTasks = selectedTeam ? selectedTeam.teamTasks : tasks;
+  const shown = submittedOnly ? shownTasks.filter((task) => task.status === 'submitted') : shownTasks;
+  const teamProjects = selectedTeam ? selectedTeam.projects : projects;
+  const showTeamOverview = !isIntern && !submittedOnly && !selectedTeam;
+  const showBoard = isIntern || submittedOnly || Boolean(selectedTeam);
 
   return (<>
-    <div className="toolbar"><span className="muted">{isIntern ? 'Start a task, then submit your work for review.' : 'Assign work, then approve or send back submissions.'}</span><div className="spacer" />
-      {!isIntern && <><select className="search" style={{ minWidth: 160 }} value={who} onChange={(e) => setWho(e.target.value)}><option value="">Everyone</option>{users.filter((u) => ['intern', 'leader'].includes(u.role)).map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}</select>
-        <button className="btn" onClick={() => setModal({ kind: 'new' })} disabled={!projects.length}>+ Assign task</button></>}</div>
-    <div className="kanban">{COLS.map((c) => { const l = shown.filter((t) => t.status === c); return (
+    {showTeamOverview && <>
+      <div className="toolbar"><span className="muted">Choose a team to see its project progress and dated task updates.</span></div>
+      {teamRows.length ? <div className="grid g2" id="team-task-progress">{teamRows.map((row) => (
+        <button type="button" className="card team-summary-card" key={row.team._id} onClick={() => chooseTeam(row.team._id)}
+          aria-label={`View ${row.team.name} tasks`}>
+          <div className="team-summary-heading">
+            <span className="team-color-dot" style={{ background: row.team.color }} />
+            <h3>{row.team.name}</h3>
+            <span className="team-summary-percent">{row.progress}%</span>
+          </div>
+          {row.projects.length ? row.projects.map((project) => <div className="team-project-summary" key={project._id}>
+            <b>{project.name}</b>
+            <p className="small muted">{project.description || 'No project description yet.'}</p>
+          </div>) : <div className="team-project-summary"><b>No project assigned</b><p className="small muted">Project description unavailable.</p></div>}
+          <div className="team-summary-progress">
+            <div className="small muted">{row.done}/{row.teamTasks.length} tasks completed · {row.members.length} members</div>
+            <Bar pct={row.progress} />
+          </div>
+        </button>
+      ))}</div> : <div className="card"><div className="empty">No teams created yet.</div></div>}
+    </>}
+    {selectedTeam && <>
+      <div className="toolbar">
+        <button className="btn ghost" onClick={clearTeam}>← All teams</button>
+        <div className="spacer" />
+        <button className="btn" onClick={() => setModal({ kind: 'new' })}>+ Assign task</button>
+      </div>
+      <section className="card">
+        <div className="team-summary-heading">
+          <span className="team-color-dot" style={{ background: selectedTeam.team.color }} />
+          <h2>{selectedTeam.team.name}</h2>
+          <span className="team-summary-percent">{selectedTeam.progress}%</span>
+        </div>
+        <div className="team-summary-progress">
+          <div className="small muted">{selectedTeam.done}/{selectedTeam.teamTasks.length} tasks completed · overall team progress</div>
+          <Bar pct={selectedTeam.progress} />
+        </div>
+        <div className="team-project-details">
+          <h3>Project{selectedTeam.projects.length === 1 ? '' : 's'}</h3>
+          {selectedTeam.projects.length ? selectedTeam.projects.map((project) => <article className="team-project-detail" key={project._id}>
+            <h4>{project.name}</h4>
+            <p className="muted">{project.description || 'No project description yet.'}</p>
+          </article>) : <p className="muted">No project has been assigned to this team yet.</p>}
+        </div>
+        <div className="team-project-details">
+          <h3>Task progress by date</h3>
+          {selectedTeam.teamTasks.length
+            ? <TaskTimeline tasks={selectedTeam.teamTasks} showAssignee />
+            : <div className="empty">No tasks have been assigned to this team yet.</div>}
+        </div>
+      </section>
+    </>}
+    {submittedOnly && !selectedTeam && <div className="toolbar">
+      <span className="muted">Submissions waiting for review.</span><div className="spacer" />
+      <button className="btn ghost" onClick={() => nav('/tasks')}>All tasks</button>
+    </div>}
+    {isIntern && <div className="toolbar"><span className="muted">Start a task, then submit your work for review.</span></div>}
+    {showBoard && <details className={selectedTeam ? 'card task-board-disclosure' : undefined} open={!selectedTeam}>
+      {selectedTeam && <summary>Manage task submissions</summary>}
+      <div className="kanban">{(submittedOnly ? ['submitted'] : COLS).map((c) => { const l = shown.filter((t) => t.status === c); return (
       <div className="col" key={c}><h4>{STATUS[c][0]}<span>{l.length}</span></h4>
         {l.map((t) => { const mine = t.assignee?._id === user._id; return (
           <div className="tcard" key={t._id}>
@@ -58,9 +138,10 @@ export default function Tasks() {
           </div>); })}
         {!l.length && <div className="empty small">Nothing here</div>}
       </div>); })}</div>
+    </details>}
 
     {modal?.kind === 'comments' && <TaskComments task={modal.task} onClose={() => { setModal(null); reloadCounts(); }} />}
-    {modal?.kind === 'new' && <NewTask projects={projects} users={users} onClose={() => setModal(null)} onSubmit={create} />}
+    {modal?.kind === 'new' && <NewTask projects={teamProjects} users={users} onClose={() => setModal(null)} onSubmit={create} />}
     {modal?.kind === 'submit' && <Modal title={'Submit: ' + modal.task.title} okLabel="Submit for review" onClose={() => setModal(null)} onSubmit={submit}>
       <label className="f">Attach file (optional)<input name="file" type="file" /></label>
       <label className="f">Note to reviewer<textarea name="note" rows="3" placeholder="What did you do? Link to your repo?" /></label></Modal>}

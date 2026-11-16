@@ -76,15 +76,20 @@ function Viewer({ item, onClose }) {
 
 function ChatAvatar({ c }) {
   if (c.kind === 'dm') return <Avatar name={c.name} />;
-  const ic = c.kind === 'announce' ? '\u{1F4E3}' : c.kind === 'team' ? '\u{1F465}' : '#';
+  const ic = c.kind === 'announce' ? '\u{1F4E3}' : c.kind === 'team' || c.kind === 'public' ? '\u{1F465}' : '#';
   return <div className="av wa-group-av">{ic}</div>;
 }
 
 export default function Chat() {
   const { user, isAdmin, toast } = useApp();
   const loc = useLocation();
+  const requestedChannel = new URLSearchParams(loc.search).get('channel');
   const [channels, setChannels] = useState(null);
-  const [ch, setCh] = useState(loc.state && loc.state.ch ? loc.state.ch : null);
+  const [teams, setTeams] = useState(null);
+  const [people, setPeople] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [expandedTeam, setExpandedTeam] = useState(null);
+  const [ch, setCh] = useState(loc.state?.ch || requestedChannel || null);
   const [msgs, setMsgs] = useState([]);
   const [last, setLast] = useState({});
   const [unread, setUnread] = useState({});
@@ -100,11 +105,21 @@ export default function Chat() {
   const fileIn = useRef(null);
 
   useEffect(() => {
-    api('/messages/channels').then((list) => {
-      setChannels(list);
-      api('/chat-files/last?ch=' + encodeURIComponent(list.map((c) => c.id).join(','))).then(setLast).catch(() => {});
-    });
+    Promise.all([api('/messages/channels'), api('/teams'), api('/users')])
+      .then(([list, teamList, personList]) => {
+        setChannels(list);
+        setTeams(teamList);
+        setPeople(personList);
+        api('/chat-files/last?ch=' + encodeURIComponent(list.map((c) => c.id).join(','))).then(setLast).catch(() => {});
+      })
+      .catch((e) => setLoadError(e.message));
   }, []);
+  useEffect(() => {
+    const target = new URLSearchParams(loc.search).get('channel');
+    if (!target || !channels?.some((channel) => channel.id === target)) return;
+    setCh(target);
+    if (target.startsWith('team:')) setExpandedTeam(target);
+  }, [loc.search, channels]);
   useEffect(() => {
     if (!ch) return;
     setMsgs(null);
@@ -129,19 +144,40 @@ export default function Chat() {
     setSeen((s) => { const n = { ...s, [c]: new Date().toISOString() }; try { localStorage.setItem(seenKey, JSON.stringify(n)); } catch { /* ignore */ } return n; });
   }
 
-  const sorted = useMemo(() => {
-    if (!channels) return [];
-    const t = (c) => (last[c.id] ? new Date(last[c.id].createdAt).getTime() : 0);
-    return channels.filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()))
-      .sort((a, b) => t(b) - t(a) || a.name.localeCompare(b.name));
-  }, [channels, last, q]);
+  const teamRows = useMemo(() => {
+    if (!channels || !teams || !people) return [];
+    return teams.map((team) => {
+      const channel = channels.find((item) => item.id === `team:${team._id}`);
+      if (!channel) return null;
+      const members = people.filter((person) => person.team?._id === team._id &&
+        person._id !== user._id && ['intern', 'leader'].includes(person.role))
+        .map((person) => ({
+          ...person,
+          channel: channels.find((item) => item.kind === 'dm' && item.userId === person._id),
+        }))
+        .filter((person) => person.channel);
+      return { ...channel, name: team.name, teamId: team._id, members };
+    }).filter(Boolean);
+  }, [channels, teams, people, user._id]);
 
-  if (!channels) return <Loading />;
-  const cur = channels.find((c) => c.id === ch);
+  if (loadError) return <div className="card" role="alert">Could not load chats: {loadError}</div>;
+  if (!channels || !teams || !people) return <Loading />;
+  const activeChannel = channels.find((c) => c.id === ch);
+  const cur = activeChannel?.kind === 'team'
+    ? { ...activeChannel, name: teamRows.find((team) => team.id === activeChannel.id)?.name || activeChannel.name }
+    : activeChannel;
   const canPost = ch !== 'announcements' || isAdmin;
   const isGroup = cur && cur.kind !== 'dm';
-  const label = (c) => (c.kind === 'team' || c.kind === 'public' ? '# ' : '') + c.name;
+  const label = (c) => c.kind === 'public' ? 'Everyone' : c.name;
   const hasNew = (c) => unread[c.id] > 0 || (last[c.id] && c.id !== ch && last[c.id].from && last[c.id].from._id !== user._id && (!seen[c.id] || last[c.id].createdAt > seen[c.id]));
+  const query = q.trim().toLowerCase();
+  const visibleTeams = teamRows.filter((team) => !query || team.name.toLowerCase().includes(query) ||
+    team.members.some((person) => person.name.toLowerCase().includes(query)));
+  const visibleMembers = (team) => team.members.filter((person) =>
+    !query || team.name.toLowerCase().includes(query) || person.name.toLowerCase().includes(query));
+  const shouldExpand = (team) => expandedTeam === team.id ||
+    (!!query && team.members.some((person) => person.name.toLowerCase().includes(query)));
+  const everyone = channels.find((c) => c.id === 'general');
   const preview = (m) => {
     if (!m) return 'No messages yet';
     const who = m.from && m.from._id === user._id ? 'You: ' : (m.from ? m.from.name.split(' ')[0] + ': ' : '');
@@ -200,15 +236,58 @@ export default function Chat() {
         <div className="wa-list-head">Chats</div>
         <div className="wa-search"><input placeholder="Search chats" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="wa-items">
-          {sorted.map((c) => { const m = last[c.id]; const n = unread[c.id] || 0; const isNew = hasNew(c); return (
-            <button key={c.id} className={'wa-item' + (c.id === ch ? ' on' : '')} onClick={() => setCh(c.id)}>
-              <ChatAvatar c={c} />
-              <span className="wa-item-body">
-                <span className="wa-item-top"><b>{label(c)}</b><span className={'wa-item-time' + (isNew ? ' new' : '')}>{m ? listTime(m.createdAt) : ''}</span></span>
-                <span className="wa-item-bot"><span className="wa-item-prev">{preview(m)}</span>{isNew && <span className="wa-badge">{n || ''}</span>}</span>
-              </span>
-            </button>); })}
-          {!sorted.length && <div className="empty small">No chats found</div>}
+          {visibleTeams.map((team) => {
+            const expanded = shouldExpand(team);
+            const teamLast = last[team.id];
+            const teamUnread = unread[team.id] || 0;
+            const teamHasNew = hasNew(team);
+            return <div className="wa-team-group" key={team.id}>
+              <button type="button" className={'wa-item wa-team-toggle' + (team.id === ch ? ' on' : '')}
+                aria-expanded={expanded} onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}>
+                <ChatAvatar c={team} />
+                <span className="wa-item-body">
+                  <span className="wa-item-top"><b>{team.name}</b><span className="wa-expand-icon">{expanded ? '⌄' : '›'}</span></span>
+                  <span className="wa-item-bot"><span className="wa-item-prev">{teamLast ? preview(teamLast) : `${team.members.length} members`}</span>
+                    {teamHasNew && <span className="wa-badge">{teamUnread || ''}</span>}</span>
+                </span>
+              </button>
+              {expanded && <div className="wa-team-children">
+                <button type="button" className={'wa-item wa-team-room' + (team.id === ch ? ' on' : '')}
+                  onClick={() => { setExpandedTeam(team.id); setCh(team.id); }}>
+                  <ChatAvatar c={team} />
+                  <span className="wa-item-body">
+                    <span className="wa-item-top"><b>Whole team</b><span className="wa-item-time">{teamLast ? listTime(teamLast.createdAt) : ''}</span></span>
+                    <span className="wa-item-bot"><span className="wa-item-prev">{preview(teamLast)}</span></span>
+                  </span>
+                </button>
+                {visibleMembers(team).map((person) => {
+                  const c = person.channel;
+                  const message = last[c.id];
+                  const newMessage = hasNew(c);
+                  return <button type="button" key={c.id} className={'wa-item wa-team-member' + (c.id === ch ? ' on' : '')}
+                    onClick={() => setCh(c.id)}>
+                    <ChatAvatar c={c} />
+                    <span className="wa-item-body">
+                      <span className="wa-item-top"><b>{person.name}</b><span className={'wa-item-time' + (newMessage ? ' new' : '')}>{message ? listTime(message.createdAt) : ''}</span></span>
+                      <span className="wa-item-bot"><span className="wa-item-prev">{preview(message)}</span>
+                        {newMessage && <span className="wa-badge">{unread[c.id] || ''}</span>}</span>
+                    </span>
+                  </button>;
+                })}
+                {!visibleMembers(team).length && <div className="wa-team-empty small muted">No team members found</div>}
+              </div>}
+            </div>;
+          })}
+          {everyone && (!query || 'everyone'.includes(query) || 'general'.includes(query)) && <button type="button"
+            className={'wa-item wa-everyone' + (everyone.id === ch ? ' on' : '')} onClick={() => setCh(everyone.id)}>
+            <ChatAvatar c={everyone} />
+            <span className="wa-item-body">
+              <span className="wa-item-top"><b>Everyone</b><span className="wa-item-time">{last[everyone.id] ? listTime(last[everyone.id].createdAt) : ''}</span></span>
+              <span className="wa-item-bot"><span className="wa-item-prev">{preview(last[everyone.id])}</span>
+                {hasNew(everyone) && <span className="wa-badge">{unread[everyone.id] || ''}</span>}</span>
+            </span>
+          </button>}
+          {!visibleTeams.length && (!query || !'everyone'.includes(query) && !'general'.includes(query)) && <div className="empty small">No chats found</div>}
         </div>
       </aside>
 

@@ -30,6 +30,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/password', require('./routes/password'));
 app.use('/api/users', auth, require('./routes/users'));
 app.use('/api/profile', auth, require('./routes/profile'));
+app.use('/api/attendance', auth, require('./routes/attendance'));
 app.use('/api/push', auth, require('./routes/push'));
 app.use('/api/teams', auth, require('./routes/teams'));
 app.use('/api/projects', auth, require('./routes/projects'));

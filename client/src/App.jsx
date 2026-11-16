@@ -11,6 +11,7 @@ import Tasks from './pages/Tasks';
 
 import Meetings from './pages/Meetings';
 import Chat from './pages/Chat';
+import Reports from './pages/Reports';
 
 
 import Roles from './pages/Roles';
@@ -34,7 +35,7 @@ export default function App() {
         {!isIntern && <Route path="/teams" element={<Teams />} />}
         <Route path="/projects" element={<Projects />} />
         <Route path="/tasks" element={<Tasks />} />
-        
+        <Route path="/reports" element={<Reports />} />
         <Route path="/worklog" element={<WorkLog />} />
         <Route path="/meetings" element={<Meetings />} />
         <Route path="/chat" element={<Chat />} />

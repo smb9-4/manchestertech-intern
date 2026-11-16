@@ -3,7 +3,7 @@ const { Message, Team, User } = require('../models');
 const { isAdmin } = require('../middleware/auth');
 const { canUseChannel, dmChannel } = require('../services/channels');
 const { broadcastMessage } = require('../services/socket');
-const { notify } = require('../services/notify');
+const { notify, notifyChat } = require('../services/notify');
 
 // Channels this user can see
 router.get('/channels', async (req, res) => {
@@ -35,6 +35,7 @@ router.post('/:channel', async (req, res) => {
   const msg = await Message.create({ channel: ch, from: req.user._id, text });
   await msg.populate('from', 'name role');
   broadcastMessage(msg);
+  await notifyChat(ch, req.user, text);
   if (ch === 'announcements') {
     const all = await User.find({ active: true, _id: { $ne: req.user._id } }).select('_id');
     await notify(all.map((x) => x._id), { icon: '📣', title: 'New announcement', body: text.slice(0, 120), link: '/chat' });

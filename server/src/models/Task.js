@@ -9,6 +9,7 @@ module.exports = mongoose.model('Task', new mongoose.Schema({
   due: { type: Date },
   priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
   status: { type: String, enum: ['todo', 'inprogress', 'submitted', 'approved', 'rejected'], default: 'todo' },
+  completedAt: { type: Date, default: null },
   submission: {
     note: String,
     file: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' },

@@ -13,12 +13,14 @@ const NAV = {
   admin: [['Overview', [['/', '🏠', 'Dashboard'], ['/interns', '🎓', 'Interns'], ['/teams', '👥', 'Teams']]],
     ['Work', [['/projects', '📁', 'Projects'], ['/tasks', '✅', 'Tasks'], ['/worklog', '\u{1F4DD}', 'Work Updates']]],
     ['Collaborate', [['/meetings', '📹', 'Meetings'], ['/chat', '💬', 'Chat']]],
-    ['Insights', [['/notices', '\u{1F4CC}', 'Notice Board'], ['/audit', '\u{1F9FE}', 'Audit Log'], ['/roles', '🔐', 'Roles & Access']]]],
+    ['Insights', [['/reports', 'chart', 'Task Progress'], ['/notices', '\u{1F4CC}', 'Notice Board'], ['/audit', '\u{1F9FE}', 'Audit Log'], ['/roles', '🔐', 'Roles & Access']]]],
   leader: [['Overview', [['/', '🏠', 'Dashboard'], ['/teams', '👥', 'My Team']]],
     ['Work', [['/projects', '📁', 'Projects'], ['/tasks', '✅', 'Tasks'], ['/worklog', '\u{1F4DD}', 'Work Updates']]],
+    ['Insights', [['/reports', 'chart', 'Task Progress']]],
     ['Collaborate', [['/meetings', '📹', 'Meetings'], ['/chat', '💬', 'Chat']]]],
   intern: [['Overview', [['/', '🏠', 'My Dashboard']]],
     ['Work', [['/projects', '📁', 'My Projects'], ['/tasks', '✅', 'My Tasks'], ['/worklog', '\u{1F4DD}', 'Work Updates']]],
+    ['Insights', [['/reports', 'chart', 'My Progress']]],
     ['Collaborate', [['/meetings', '📹', 'Meetings'], ['/chat', '💬', 'Chat']]]],
 };
 const roleKey = (r) => (r === 'superadmin' ? 'admin' : r);

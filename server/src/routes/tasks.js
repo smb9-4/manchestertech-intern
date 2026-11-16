@@ -16,14 +16,18 @@ router.get('/', async (req, res) => {
 
 router.post('/', allow('admin', 'leader'), async (req, res) => {
   const { title, description, project, assignee, due, priority } = req.body || {};
-  if (!title || !project || !assignee) return res.status(400).json({ error: 'Title, project and assignee are required' });
+  const cleanTitle = String(title || '').trim();
+  if (!cleanTitle || !project || !assignee) return res.status(400).json({ error: 'Title, project and assignee are required' });
+  const dueDate = due ? new Date(due) : undefined;
+  if (due && Number.isNaN(dueDate.getTime())) return res.status(400).json({ error: 'Enter a valid due date' });
   const p = await Project.findById(project);
-  const a = await User.findById(assignee);
-  if (!p || !a) return res.status(400).json({ error: 'Project or intern not found' });
+  const a = await User.findOne({ _id: assignee, active: true, role: { $in: ['intern', 'leader'] } });
+  if (!p) return res.status(400).json({ error: 'Project not found' });
+  if (!a) return res.status(400).json({ error: 'Assignee must be an active intern or team leader' });
   if (!isAdmin(req.user) && String(p.team) !== String(req.user.team)) return res.status(403).json({ error: 'You can only assign tasks in your team' });
   if (String(a.team) !== String(p.team)) return res.status(400).json({ error: `${a.name} is not in this project’s team` });
-  const t = await Task.create({ title, description, project, team: p.team, assignee, due, priority, createdBy: req.user._id });
-  await notify([assignee], { icon: '📋', title: 'New task assigned', body: `${title}${due ? ' · due ' + new Date(due).toDateString() : ''}`, link: '/tasks' });
+  const t = await Task.create({ title: cleanTitle, description, project, team: p.team, assignee, due: dueDate, priority, createdBy: req.user._id });
+  await notify([assignee], { icon: '📋', title: 'New task assigned', body: `${cleanTitle}${dueDate ? ' · due ' + dueDate.toDateString() : ''}`, link: '/tasks' });
   res.status(201).json(await pop(Task.findById(t._id)));
 });
 
@@ -45,6 +49,7 @@ router.patch('/:id', async (req, res) => {
   } else if (['approved', 'rejected'].includes(b.status) && reviewer && !mine) {
     if (b.status === 'rejected' && !b.feedback) return res.status(400).json({ error: 'Add feedback so the intern knows what to fix' });
     t.status = b.status;
+    t.completedAt = b.status === 'approved' ? new Date() : null;
     t.feedback = b.feedback || '';
     await notify([t.assignee], b.status === 'approved'
       ? { icon: '✅', title: 'Submission approved', body: `“${t.title}”${b.feedback ? ': ' + b.feedback : ''}`, link: '/tasks' }

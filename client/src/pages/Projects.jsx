@@ -10,7 +10,12 @@ export default function Projects() {
   const [modal, setModal] = useState(false);
   if (!projects || !teams) return <Loading />;
   const patch = async (p, body) => { try { await api('/projects/' + p._id, { method: 'PATCH', body }); reload(); } catch (e) { toast(e.message); } };
-  const create = async (fd) => { await api('/projects', { method: 'POST', body: Object.fromEntries(fd) }); setModal(false); reload(); toast('Project created'); };
+  const create = async (fd) => {
+    const body = Object.fromEntries(fd);
+    if (!body.due) delete body.due;
+    await api('/projects', { method: 'POST', body });
+    setModal(false); reload(); toast('Project created');
+  };
   return (<>
     {isAdmin && <div className="toolbar"><div className="spacer" /><button className="btn" onClick={() => setModal(true)}>+ New project</button></div>}
     {!projects.length && <div className="card"><Empty>No projects yet{isAdmin ? '. Create one and assign it to a team.' : '.'}</Empty></div>}

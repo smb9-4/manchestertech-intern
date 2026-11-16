@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const { Message } = require('../models');
 const { canUseChannel } = require('../services/channels');
 const { broadcastMessage } = require('../services/socket');
+const { notifyChat } = require('../services/notify');
 
 const ChatFile = mongoose.models.ChatFile || mongoose.model('ChatFile', new mongoose.Schema({
   channel: { type: String, required: true, index: true },
@@ -67,6 +68,7 @@ router.post('/:channel', (req, res, next) => {
   await msg.populate('from', 'name role');
   await msg.populate('file', 'name mime size');
   broadcastMessage(msg);
+  await notifyChat(req.params.channel, req.user, req.body?.text || 'Shared an attachment');
   res.status(201).json(msg);
 });
 
