@@ -16,12 +16,34 @@ for (const k of ['MONGO_URI', 'JWT_SECRET']) {
 
 const app = express();
 const server = http.createServer(app);
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const clientOrigins = Array.from(new Set([
+  process.env.CLIENT_URL,
+  process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
+  process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
+  !process.env.VERCEL && 'http://localhost:5173',
+].filter(Boolean).map((url) => new URL(url).origin)));
+if (!clientOrigins.length) clientOrigins.push('http://localhost:5173');
 
+let databaseConnection;
+function connectDatabase() {
+  if (mongoose.connection.readyState === 1) return Promise.resolve(mongoose.connection);
+  if (!databaseConnection) {
+    databaseConnection = mongoose.connect(process.env.MONGO_URI).catch((error) => {
+      databaseConnection = null;
+      throw error;
+    });
+  }
+  return databaseConnection;
+}
+
+let realtimeReady = Promise.resolve();
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
-app.use(cors({ origin: CLIENT_URL }));
+app.use(cors({ origin: clientOrigins }));
 app.use(express.json({ limit: '1mb' }));
 app.set('trust proxy', 1);
+app.use((req, res, next) => {
+  Promise.all([connectDatabase(), realtimeReady]).then(() => next()).catch(next);
+});
 app.use(require('./middleware/auditTrail'));
 app.use(require('./middleware/emailTrail'));
 
@@ -64,9 +86,20 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong' });
 });
 
-require('./services/socket').init(server, CLIENT_URL);
+const socketService = require('./services/socket').init(
+  server,
+  clientOrigins,
+  connectDatabase,
+  Boolean(process.env.VERCEL) && process.env.VERCEL_ENV !== 'development',
+);
+realtimeReady = socketService.ready;
+app.server = server;
 
 const PORT = process.env.PORT || 5000;
-mongoose.connect(process.env.MONGO_URI).then(() => {
-  server.listen(PORT, () => console.log(`InternHub API running on http://localhost:${PORT}`));
-}).catch((e) => { console.error('MongoDB connection failed:', e.message); process.exit(1); });
+if (require.main === module) {
+  connectDatabase().then(() => {
+    server.listen(PORT, () => console.log(`InternHub API running on http://localhost:${PORT}`));
+  }).catch((e) => { console.error('MongoDB connection failed:', e.message); process.exit(1); });
+}
+
+module.exports = app;

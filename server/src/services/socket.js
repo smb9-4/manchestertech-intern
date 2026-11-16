@@ -1,21 +1,39 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 let io = null;
 const { User, Team, Message } = require('../models');
 const { canUseChannel } = require('./channels');
 const { notifyChat } = require('./notify');
 
-function init(server, corsOrigin) {
+function init(server, corsOrigin, ensureDatabase, useSharedAdapter = false) {
   const { Server } = require('socket.io');
+  const { createAdapter } = require('@socket.io/mongo-adapter');
   io = new Server(server, { cors: { origin: corsOrigin } });
+  let ready = Promise.resolve();
+
+  if (useSharedAdapter) {
+    ready = (async () => {
+      await ensureDatabase();
+      const collection = mongoose.connection.db.collection('socket.io-adapter-events');
+      await collection.createIndex({ createdAt: 1 }, { expireAfterSeconds: 3600 });
+      io.adapter(createAdapter(collection, { addCreatedAtField: true }));
+    })();
+    ready.catch((error) => console.error('Socket.IO shared adapter initialization failed:', error.message));
+  }
 
   io.use(async (socket, next) => {
     try {
+      await ready;
+      if (ensureDatabase) await ensureDatabase();
       const { id } = jwt.verify(socket.handshake.auth?.token, process.env.JWT_SECRET);
       const user = await User.findById(id);
       if (!user || !user.active) return next(new Error('unauthorized'));
       socket.user = user;
       next();
-    } catch { next(new Error('unauthorized')); }
+    } catch (error) {
+      console.error('Socket authentication failed:', error.message);
+      next(new Error('unauthorized'));
+    }
   });
 
   io.on('connection', async (socket) => {
@@ -41,7 +59,7 @@ function init(server, corsOrigin) {
       } catch (e) { ack?.({ error: e.message }); }
     });
   });
-  return io;
+  return { io, ready };
 }
 
 function broadcastMessage(msg) {

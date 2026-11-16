@@ -108,6 +108,14 @@ The server also serves the built React app, so you deploy **one** web service. O
 - **Uploaded files disappear on redeploy**, because free instances have no permanent disk. Before relying on uploads, either add a persistent disk to the service or move storage to Cloudinary/S3. Only `server/src/routes/documents.js` needs to change.
 - **Free instances sleep** after inactivity, so the first visit takes about 30–60 seconds. A paid instance avoids this.
 
+## Deploy to Vercel (two services)
+
+The root `vercel.json` defines a Vite client and an Express server. Import the repository root as the Vercel project root; the client is public on all non-API paths, while the server is routed only for `/api/*` and `/socket.io/*`. No service bindings are needed because the browser calls the server through same-origin public routes.
+
+Add `MONGO_URI` and `JWT_SECRET` to the server service's environment variables, plus any optional integrations from `server/.env`. Set `CLIENT_URL` to the site's production origin when using a custom domain; Vercel deployment URLs are also allowed automatically. Run `vercel dev` from the repository root to test both services together.
+
+Vercel's function filesystem is temporary, so document and chat uploads need external storage (such as Cloudinary or S3) for production. Socket.IO uses WebSockets and a MongoDB adapter on Vercel to share chat events across function instances; the configured MongoDB deployment must be a replica set or sharded cluster (MongoDB Atlas supports this).
+
 ---
 
 ## Your 2-day plan

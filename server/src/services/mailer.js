@@ -4,7 +4,13 @@
 const API = process.env.MAIL_API_URL || 'https://api.brevo.com/v3/smtp/email';
 
 const enabled = () => !!(process.env.BREVO_API_KEY && process.env.MAIL_FROM);
-const appUrl = () => (process.env.APP_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+const appUrl = () => (
+  process.env.APP_URL ||
+  process.env.CLIENT_URL ||
+  (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`) ||
+  'http://localhost:5173'
+).replace(/\/+$/, '');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function layout(title, bodyHtml, button) {
