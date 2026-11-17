@@ -73,3 +73,4 @@ router.post('/:channel', (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.default = router;
