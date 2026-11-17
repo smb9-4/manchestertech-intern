@@ -1,3 +1,4 @@
 const app = require('../src/index');
 
-module.exports = app.server;
+// Vercel serverless: export the Express app (not the HTTP server)
+module.exports = app;
