@@ -103,7 +103,5 @@ if (require.main === module) {
   }).catch((e) => { console.error('MongoDB connection failed:', e.message); process.exit(1); });
 }
 
-// Export the express app as both default and named for CJS/ESM interop
+// Export the Express app for Vercel and local imports.
 module.exports = app;
-module.exports.default = app;
-module.exports.app = app;
