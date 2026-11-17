@@ -22,7 +22,7 @@ const clientOrigins = Array.from(new Set([
   process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
   process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
   !process.env.VERCEL && 'http://localhost:5173',
-].filter(Boolean).map((url) => new URL(url).origin)));
+].filter(Boolean).map((url) => { try { return new URL(url).origin; } catch { return null; } }).filter(Boolean)));
 if (!clientOrigins.length) clientOrigins.push('http://localhost:5173');
 
 let databaseConnection;

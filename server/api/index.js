@@ -1,5 +1,7 @@
 const app = require('../src/index');
 
-// Vercel serverless: export the Express app as the default handler
-module.exports = app;
-module.exports.default = app;
+// Vercel serverless handler — must export a plain function (req, res)
+module.exports = function handler(req, res) {
+  return app(req, res);
+};
+
