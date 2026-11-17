@@ -13,6 +13,7 @@ const { auth } = require('./middleware/auth');
 // Warn about missing env vars but don't exit — Vercel injects vars at request time
 for (const k of ['MONGO_URI', 'JWT_SECRET']) {
   if (!process.env[k]) console.warn(`Warning: ${k} is not set`);
+}
 
 const app = express();
 const server = http.createServer(app);
