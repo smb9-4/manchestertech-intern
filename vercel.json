@@ -14,7 +14,7 @@
     "server": {
       "root": "server",
       "framework": "express",
-      "entrypoint": "api/index.js"
+      "entrypoint": "src/index.js"
     }
   },
   "rewrites": [
