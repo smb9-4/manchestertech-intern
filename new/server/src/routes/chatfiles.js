@@ -72,4 +72,4 @@ router.post('/:channel', (req, res, next) => {
   res.status(201).json(msg);
 });
 
-module.exports = { default: router };
+module.exports = router;

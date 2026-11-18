@@ -17,21 +17,6 @@ const helmet = require('helmet');
 const mongoose = require('mongoose');
 const { auth } = require('./middleware/auth');
 
-function resolveMiddleware(value) {
-  const candidates = [value];
-  const seen = new Set();
-  while (candidates.length) {
-    const candidate = candidates.pop();
-    if (typeof candidate === 'function') return candidate;
-    if (!candidate || typeof candidate !== 'object' || seen.has(candidate)) continue;
-    seen.add(candidate);
-    if (candidate.router) candidates.push(candidate.router);
-    if (candidate.app) candidates.push(candidate.app);
-    if (candidate.default) candidates.push(candidate.default);
-  }
-  return null;
-}
-
 // Warn about missing env vars but don't exit — Vercel injects vars at request time
 for (const k of ['MONGO_URI', 'JWT_SECRET']) {
   if (!process.env[k]) console.warn(`Warning: ${k} is not set`);
@@ -81,9 +66,7 @@ app.use('/api/projects', auth, require('./routes/projects'));
 app.use('/api/tasks', auth, require('./routes/tasks'));
 
 app.use('/api/meetings', auth, require('./routes/meetings'));
-const chatFilesRouter = resolveMiddleware(require('./routes/chatfiles'));
-if (!chatFilesRouter) throw new TypeError('Chat-file router export is not callable');
-app.use('/api/chat-files', auth, chatFilesRouter);
+app.use('/api/chat-files', auth, require('./routes/chatfiles'));
 app.use('/api/messages', auth, require('./routes/messages'));
 app.use('/api/documents', auth, require('./routes/documents'));
 app.use('/api/notifications', auth, require('./routes/notifications'));
