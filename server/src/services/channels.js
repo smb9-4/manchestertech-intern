@@ -5,7 +5,11 @@ function canUseChannel(user, channel, write = false) {
   if (!channel) return false;
   if (channel === 'general') return true;
   if (channel === 'announcements') return write ? isAdmin(user) : true;
-  if (channel.startsWith('team:')) return isAdmin(user) || String(user.team) === channel.slice(5);
+  if (channel.startsWith('team:')) {
+    const teamId = channel.slice(5);
+    const userTeamId = user.team?._id ? String(user.team._id) : user.team ? String(user.team) : null;
+    return isAdmin(user) || userTeamId === teamId;
+  }
   if (channel.startsWith('dm:')) {
     const ids = channel.split(':').slice(1);
     return ids.length === 2 && ids.includes(String(user._id));

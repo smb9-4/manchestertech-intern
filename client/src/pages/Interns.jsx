@@ -61,7 +61,11 @@ export default function Interns() {
         <div className="row2"><label className="f">Full name<input name="name" required /></label><label className="f">Email<input name="email" type="email" required /></label></div>
         <div className="row2"><label className="f">College<input name="college" /></label><label className="f">Phone<input name="phone" /></label></div>
         <div className="row2"><label className="f">Team<select name="team"><option value="">No team yet</option>{teams.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}</select></label>
-          <label className="f">Role<select name="role"><option value="intern">Intern</option>{user.role === 'superadmin' && <option value="admin">Admin</option>}</select></label></div>
+          <label className="f">Role<select name="role">
+                  <option value="intern">Intern</option>
+                  <option value="leader">Team Leader</option>
+                  {user.role === 'superadmin' && <option value="admin">Admin</option>}
+                </select></label></div>
       </Modal>)}
     {modal?.kind === 'profile' && <ProfileModal userId={modal.id} onClose={() => { setModal(null); reload(); }} />}
     {modal?.kind === 'bulk' && <BulkImport teams={teams} onClose={() => setModal(null)} onDone={reload} />}

@@ -55,6 +55,14 @@ router.patch('/:id', async (req, res) => {
       if (led && String(led._id) !== String(b.team)) return res.status(400).json({ error: 'This person leads a team. Pick a new leader first.' });
       target.team = b.team || null;
     }
+    if ('role' in b) {
+      const allowed = ['intern', 'leader', 'admin'];
+      const newRole = b.role;
+      if (!allowed.includes(newRole)) return res.status(400).json({ error: 'Invalid role' });
+      if (newRole === 'admin' && me.role !== 'superadmin') return res.status(403).json({ error: 'Only Super Admin can assign Admin role' });
+      if (String(target._id) === String(me._id)) return res.status(400).json({ error: 'You cannot change your own role' });
+      target.role = newRole;
+    }
   } else if (me.role === 'leader' && String(target.team) === String(me.team) && String(target._id) !== String(me._id)) {
     for (const k of ['rating', 'feedback']) if (k in b) target[k] = b[k];
   } else if (String(target._id) === String(me._id)) {

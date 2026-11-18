@@ -43,7 +43,9 @@ function init(server, corsOrigin, ensureDatabase, useSharedAdapter = false) {
     socket.join('announcements');
     if (['admin', 'superadmin'].includes(u.role)) {
       (await Team.find().select('_id')).forEach((t) => socket.join(`team:${t._id}`));
-    } else if (u.team) socket.join(`team:${u.team}`);
+    } else if (u.team) {
+      socket.join(`team:${u.team._id || u.team}`);
+    }
 
     socket.on('message:send', async ({ channel, text }, ack) => {
       try {
@@ -55,7 +57,7 @@ function init(server, corsOrigin, ensureDatabase, useSharedAdapter = false) {
         await msg.populate('from', 'name role');
         broadcastMessage(msg);
         await notifyChat(channel, fresh, text);
-        ack?.({ ok: true });
+        ack?.({ ok: true, message: msg });
       } catch (e) { ack?.({ error: e.message }); }
     });
   });
