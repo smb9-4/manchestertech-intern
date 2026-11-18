@@ -6,8 +6,8 @@ const multer = require('multer');
 const { Document } = require('../models');
 const { isAdmin, teamScope } = require('../middleware/auth');
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPLOAD_DIR = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, '..', '..', 'uploads');
+try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch {}
 const upload = multer({
   storage: multer.diskStorage({
     destination: UPLOAD_DIR,

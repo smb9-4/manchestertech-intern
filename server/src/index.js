@@ -1,6 +1,13 @@
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-require('dotenv').config();
+if (!process.env.VERCEL) {
+  try {
+    const dns = require('dns');
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch {}
+  try {
+    const mod = 'dotenv';
+    require(mod).config();
+  } catch {}
+}
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -9,21 +16,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
 const { auth } = require('./middleware/auth');
-
-function resolveMiddleware(value) {
-  const candidates = [value];
-  const seen = new Set();
-  while (candidates.length) {
-    const candidate = candidates.pop();
-    if (typeof candidate === 'function') return candidate;
-    if (!candidate || typeof candidate !== 'object' || seen.has(candidate)) continue;
-    seen.add(candidate);
-    if (candidate.router) candidates.push(candidate.router);
-    if (candidate.app) candidates.push(candidate.app);
-    if (candidate.default) candidates.push(candidate.default);
-  }
-  return null;
-}
 
 // Warn about missing env vars but don't exit — Vercel injects vars at request time
 for (const k of ['MONGO_URI', 'JWT_SECRET']) {
@@ -52,13 +44,12 @@ function connectDatabase() {
   return databaseConnection;
 }
 
-let realtimeReady = Promise.resolve();
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
 app.use(cors({ origin: clientOrigins }));
 app.use(express.json({ limit: '1mb' }));
 app.set('trust proxy', 1);
 app.use((req, res, next) => {
-  Promise.all([connectDatabase(), realtimeReady]).then(() => next()).catch(next);
+  connectDatabase().then(() => next()).catch(next);
 });
 app.use(require('./middleware/auditTrail'));
 app.use(require('./middleware/emailTrail'));
@@ -75,9 +66,7 @@ app.use('/api/projects', auth, require('./routes/projects'));
 app.use('/api/tasks', auth, require('./routes/tasks'));
 
 app.use('/api/meetings', auth, require('./routes/meetings'));
-const chatFilesRouter = resolveMiddleware(require('./routes/chatfiles'));
-if (!chatFilesRouter) throw new TypeError('Chat-file router export is not callable');
-app.use('/api/chat-files', auth, chatFilesRouter);
+app.use('/api/chat-files', auth, require('./routes/chatfiles'));
 app.use('/api/messages', auth, require('./routes/messages'));
 app.use('/api/documents', auth, require('./routes/documents'));
 app.use('/api/notifications', auth, require('./routes/notifications'));
@@ -104,13 +93,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong' });
 });
 
-const socketService = require('./services/socket').init(
+require('./services/socket').init(
   server,
   clientOrigins,
   connectDatabase,
   Boolean(process.env.VERCEL) && process.env.VERCEL_ENV !== 'development',
 );
-realtimeReady = socketService.ready;
 app.server = server;
 
 const PORT = process.env.PORT || 5000;

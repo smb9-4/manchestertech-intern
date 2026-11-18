@@ -15,7 +15,7 @@ export async function api(path, { method = 'GET', body, form } = {}) {
     throw new Error('Session expired');
   }
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
-  if (!res.ok) throw new Error(data?.error || 'Request failed');
+  if (!res.ok) throw new Error(data?.error || `Server returned HTTP ${res.status}. Check the deployment logs.`);
   return data;
 }
 

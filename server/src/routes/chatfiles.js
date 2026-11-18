@@ -20,8 +20,8 @@ const ChatFile = mongoose.models.ChatFile || mongoose.model('ChatFile', new mong
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true }));
 
-const DIR = path.join(__dirname, '..', '..', 'uploads', 'chat');
-fs.mkdirSync(DIR, { recursive: true });
+const DIR = process.env.VERCEL ? path.join('/tmp', 'uploads', 'chat') : path.join(__dirname, '..', '..', 'uploads', 'chat');
+try { fs.mkdirSync(DIR, { recursive: true }); } catch {}
 const upload = multer({
   storage: multer.diskStorage({
     destination: DIR,
@@ -72,4 +72,4 @@ router.post('/:channel', (req, res, next) => {
   res.status(201).json(msg);
 });
 
-module.exports = { default: router };
+module.exports = router;
