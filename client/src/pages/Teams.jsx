@@ -109,7 +109,8 @@ export default function Teams() {
           {selectedMember ? '← Back to team' : '← All teams'}
         </button>
         <div className="spacer" />
-        {isAdmin && <button className="btn" onClick={() => setModal({ kind: 'team' })}>+ New team</button>}
+        {(isAdmin || isLeader) && <button className="btn" onClick={() => setModal({ kind: 'addMember', teamId: selectedTeam._id })}>+ Add member</button>}
+        {isAdmin && <button className="btn ghost" onClick={() => setModal({ kind: 'team' })}>+ New team</button>}
       </div>
 
       <section className="card team-detail">
@@ -188,6 +189,25 @@ export default function Teams() {
       </section>}
     </>}
 
+    {modal?.kind === 'addMember' && (
+      <Modal title="Add member to team" okLabel="Add" onClose={() => setModal(null)} onSubmit={async (fd) => {
+        const uid = fd.get('userId');
+        if (!uid) throw new Error('Select a member');
+        await api('/users/' + uid, { method: 'PATCH', body: { team: modal.teamId } });
+        setModal(null); reload(); toast('Member added to team');
+      }}>
+        <label className="f">
+          Select member
+          <select name="userId" required>
+            <option value="">Choose...</option>
+            {unassigned.map((u) => (
+              <option key={u._id} value={u._id}>{u.name} ({u.role === 'leader' ? 'Team Leader' : 'Intern'})</option>
+            ))}
+          </select>
+        </label>
+        {!unassigned.length && <p className="muted" style={{ marginTop: 8 }}>No unassigned members available. Add interns from the Interns page first.</p>}
+      </Modal>
+    )}
     {modal?.kind === 'profile' && <ProfileModal userId={modal.id} onClose={() => setModal(null)} />}
     {modal?.kind === 'team' && <Modal title="New team" okLabel="Create" onClose={() => setModal(null)} onSubmit={create}>
       <label className="f">Team name<input name="name" required placeholder="Team Epsilon" /></label>

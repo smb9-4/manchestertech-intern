@@ -49,7 +49,23 @@ export default function Interns() {
           <tr key={u._id} style={{ opacity: u.active ? 1 : 0.5 }}>
             <td><div className="who"><Avatar sm name={u.name} photo={u.profile && u.profile.photo} /><div><div className="n">{u.name}</div><div className="e">{u.email}</div></div></div></td>
             <td><span className={'pill ' + (u.role === 'leader' ? 'p-brand' : u.role === 'intern' ? 'p-grey' : 'p-blue')}>{u.role}</span></td>
-            <td>{u.team?.name || '-'}</td><td>{projectsFor(u._id).join(', ') || '-'}</td><td><AttPill s={attendanceByUser.get(u._id)?.status} /></td><td className="muted">{u.college || '-'}</td>
+            <td>
+              {u.team?.name ? u.team.name : (
+                <select
+                  style={{ background: 'transparent', border: '1px solid #22c55e', color: '#22c55e', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer' }}
+                  defaultValue=""
+                  onChange={async (e) => {
+                    if (!e.target.value) return;
+                    try { await api('/users/' + u._id, { method: 'PATCH', body: { team: e.target.value } }); toast('Added to team'); reload(); }
+                    catch (err) { toast(err.message); }
+                    e.target.value = '';
+                  }}
+                >
+                  <option value="">+ Add to team</option>
+                  {teams.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                </select>
+              )}
+            </td><td>{projectsFor(u._id).join(', ') || '-'}</td><td><AttPill s={attendanceByUser.get(u._id)?.status} /></td><td className="muted">{u.college || '-'}</td>
             <td>{s ? `${s.done}/${s.tasks}` : '-'}</td><td>{s ? s.score : '-'}</td>
             <td style={{ whiteSpace: 'nowrap' }}><button className="btn ghost sm" onClick={() => setModal({ kind: 'profile', id: u._id })}>Profile</button> {u._id !== user._id && <><button className="btn ghost sm" onClick={() => reset(u)}>Reset password</button> <button className="btn ghost sm" onClick={() => toggle(u)}>{u.active ? 'Remove' : 'Restore'}</button></>}</td>
           </tr>); })}
