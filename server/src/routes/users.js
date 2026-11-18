@@ -33,7 +33,7 @@ router.post('/', allow('admin'), async (req, res) => {
   if (!cleanEmail.includes('@')) return res.status(400).json({ error: 'Enter a valid email address' });
   if (team && (!mongoose.isValidObjectId(team) || !await Team.exists({ _id: team }))) return res.status(400).json({ error: 'Selected team was not found' });
   if (await User.findOne({ email: cleanEmail })) return res.status(400).json({ error: 'That email is already registered' });
-  let newRole = ['intern', 'admin'].includes(role) ? role : 'intern';
+  let newRole = ['intern', 'leader', 'admin'].includes(role) ? role : 'intern';
   if (newRole === 'admin' && req.user.role !== 'superadmin') newRole = 'intern';
   const tempPassword = crypto.randomBytes(5).toString('hex');
   const user = await User.create({ name: cleanName, email: cleanEmail, college, phone, team: team || null, role: newRole, password: tempPassword, mustChangePassword: true });

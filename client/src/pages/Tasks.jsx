@@ -10,6 +10,8 @@ const COLS = ['todo', 'inprogress', 'submitted', 'rejected', 'approved'];
 
 export default function Tasks() {
   const { isIntern, user, toast } = useApp();
+  const { isLeader } = useApp();
+  const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, reload] = useApi('/tasks');
   const [counts, reloadCounts] = useApi('/task-comments/counts');
@@ -18,7 +20,10 @@ export default function Tasks() {
   const [teams] = useApi(isIntern ? null : '/teams');
   const [report] = useApi(isIntern ? null : '/reports');
   const [modal, setModal] = useState(null);
-  const teamId = searchParams.get('team');
+  // Leaders jump straight to their team view
+  const leaderTeamId = isLeader && user.team ? (user.team._id || user.team) : null;
+  const rawTeamId = searchParams.get('team');
+  const teamId = isLeader && !rawTeamId && leaderTeamId ? String(leaderTeamId) : rawTeamId;
   const submittedOnly = searchParams.get('status') === 'submitted';
   if (!tasks || !projects || (!isIntern && (!users || !teams || !report))) return <Loading />;
 
@@ -53,7 +58,7 @@ export default function Tasks() {
   const shownTasks = selectedTeam ? selectedTeam.teamTasks : tasks;
   const shown = submittedOnly ? shownTasks.filter((task) => task.status === 'submitted') : shownTasks;
   const teamProjects = selectedTeam ? selectedTeam.projects : projects;
-  const showTeamOverview = !isIntern && !submittedOnly && !selectedTeam;
+  const showTeamOverview = !isIntern && !submittedOnly && !selectedTeam && !isLeader;
   const showBoard = isIntern || submittedOnly || Boolean(selectedTeam);
 
   return (<>
@@ -80,7 +85,7 @@ export default function Tasks() {
     </>}
     {selectedTeam && <>
       <div className="toolbar">
-        <button className="btn ghost" onClick={clearTeam}>← All teams</button>
+        {!isLeader && <button className="btn ghost" onClick={clearTeam}>← All teams</button>}
         <div className="spacer" />
         <button className="btn" onClick={() => setModal({ kind: 'new' })}>+ Assign task</button>
       </div>

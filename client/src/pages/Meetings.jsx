@@ -4,12 +4,15 @@ import { useApp } from '../context';
 import { useApi, Loading, Modal, Empty, fmtTime } from '../components/ui';
 
 export default function Meetings() {
-  const { isAdmin, isIntern, toast } = useApp();
+  const { isAdmin, isIntern, isLeader, user, toast } = useApp();
   const [meetings, reload] = useApi('/meetings');
   const [teams] = useApi('/teams');
   const [gs] = useApi('/meetings/google-status');
   const [modal, setModal] = useState(null);
   if (!meetings || !teams || !gs) return <Loading />;
+  // Leaders only see their own team in the participants dropdown
+  const myTeamId = isLeader && user.team ? String(user.team._id || user.team) : null;
+  const schedulableTeams = isLeader ? teams.filter((t) => String(t._id) === myTeamId) : teams;
   const cutoff = Date.now() - 2 * 3600e3;
   const up = meetings.filter((m) => new Date(m.start) >= cutoff);
   const past = meetings.filter((m) => new Date(m.start) < cutoff).reverse();
@@ -50,7 +53,7 @@ export default function Meetings() {
       <label className="f">Title<input name="title" required placeholder="Sprint planning" /></label>
       <div className="row2"><label className="f">Date<input name="date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label><label className="f">Time<input name="time" type="time" required defaultValue="11:00" /></label></div>
       <div className="row2">
-        <label className="f">Participants<select name="team">{isAdmin && <option value="">Everyone</option>}{teams.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}</select></label>
+        <label className="f">Participants<select name="team">{isAdmin && <option value="">Everyone</option>}{schedulableTeams.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}</select></label>
         <label className="f">Duration (min)<select name="duration" defaultValue="30"><option>15</option><option>30</option><option>45</option><option>60</option><option>90</option></select></label></div>
       <label className="f">Agenda<textarea name="agenda" rows="2" /></label>
       {!gs.enabled && <label className="f">Google Meet link<input name="link" placeholder="https://meet.google.com/abc-defg-hij" /></label>}
