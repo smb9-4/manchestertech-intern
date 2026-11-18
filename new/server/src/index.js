@@ -1,6 +1,13 @@
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-require('dotenv').config();
+if (!process.env.VERCEL) {
+  try {
+    const dns = require('dns');
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch {}
+  try {
+    const mod = 'dotenv';
+    require(mod).config();
+  } catch {}
+}
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
