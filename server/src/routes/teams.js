@@ -9,17 +9,18 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', allow('admin'), async (req, res) => {
-  const { name, focus, color } = req.body || {};
+  const { name, focus, color, description } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Team name is required' });
-  res.status(201).json(await Team.create({ name, focus, color }));
+  res.status(201).json(await Team.create({ name, focus, color, description }));
 });
 
 router.patch('/:id', allow('admin'), async (req, res) => {
   const team = await Team.findById(req.params.id);
   if (!team) return res.status(404).json({ error: 'Team not found' });
-  const { name, focus, color, leader } = req.body || {};
+  const { name, focus, color, leader, description } = req.body || {};
   if (name) team.name = name;
   if (focus !== undefined) team.focus = focus;
+  if (description !== undefined) team.description = description;
   if (color) team.color = color;
   if (leader !== undefined) {
     if (team.leader) await User.updateOne({ _id: team.leader, role: 'leader' }, { role: 'intern' });
@@ -38,7 +39,7 @@ router.patch('/:id', allow('admin'), async (req, res) => {
 });
 
 router.delete('/:id', allow('admin'), async (req, res) => {
-  if (await User.exists({ team: req.params.id, active: true })) return res.status(400).json({ error: 'Move the team members out first' });
+  await User.updateMany({ team: req.params.id }, { team: null });
   await Team.findByIdAndDelete(req.params.id);
   res.json({ ok: true });
 });

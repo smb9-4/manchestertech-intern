@@ -1,10 +1,59 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useApp } from '../context';
 import { ProfileModal } from '../components/ProfileForm';
 import { useApi, Avatar, Loading, Modal, Bar, Empty } from '../components/ui';
 import TaskTimeline from '../components/TaskTimeline';
+
+/* ── tiny 3-dot dropdown ─────────────────────────────────────────── */
+function TeamMenu({ team, onRename, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen((v) => !v); }}
+        aria-label="Team options"
+        style={{
+          background: open ? 'rgba(212,178,106,.15)' : 'transparent',
+          border: '1px solid ' + (open ? 'var(--brand)' : 'var(--line)'),
+          cursor: 'pointer',
+          color: 'var(--brand)',
+          fontSize: 18,
+          lineHeight: 1,
+          padding: '2px 8px',
+          borderRadius: 6,
+          transition: 'all .15s'
+        }}
+      >⋮</button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '120%', right: 0, zIndex: 60,
+          background: '#161619', border: '1px solid #33302a',
+          borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,.6)',
+          minWidth: 150, overflow: 'hidden'
+        }}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); onRename(team); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid #262420', fontSize: 13, cursor: 'pointer', color: 'var(--ink)' }}>
+            ✏️ Change name
+          </button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(team); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: '#f87171' }}>
+            🗑️ Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const taskTeamId = (task) => String(task.team?._id || task.team);
 
@@ -47,6 +96,15 @@ export default function Teams() {
     await api('/teams', { method: 'POST', body: Object.fromEntries(fd) });
     setModal(null); reload(); toast('Team created');
   };
+  const renameTeam = async (fd) => {
+    await api('/teams/' + modal.team._id, { method: 'PATCH', body: { name: fd.get('name'), focus: fd.get('focus'), description: fd.get('description') } });
+    setModal(null); reload(); toast('Team updated');
+  };
+  const deleteTeam = async () => {
+    if (!modal?.team) return;
+    await api('/teams/' + modal.team._id, { method: 'DELETE' });
+    setModal(null); showTeams(); reload(); toast('Team deleted');
+  };
   const rate = async (fd) => {
     await api('/users/' + modal.user._id, { method: 'PATCH', body: { rating: +fd.get('rating'), feedback: fd.get('feedback') } });
     setModal(null); reload(); toast('Feedback saved');
@@ -66,25 +124,37 @@ export default function Teams() {
           const teamTaskList = teamTasks(team);
           const teamDone = completedTasks(teamTaskList);
           const teamProgress = progress(teamTaskList);
-          return <button type="button" className="card team-summary-card" key={team._id}
-            onClick={() => showTeam(team._id)} aria-label={`View ${team.name} progress`}>
+          return <div className="card team-summary-card" key={team._id} style={{ position: 'relative' }}
+            onClick={() => showTeam(team._id)}>
             <div className="team-summary-heading">
               <span className="team-color-dot" style={{ background: team.color }} />
               <h3>{team.name}</h3>
               <span className="team-summary-percent">{teamProgress}%</span>
+              {isAdmin && (
+                <TeamMenu team={team}
+                  onRename={(t) => setModal({ kind: 'rename', team: t })}
+                  onDelete={(t) => setModal({ kind: 'confirmDelete', team: t })}
+                />
+              )}
             </div>
+            {team.description ? (
+              <div style={{ marginTop: 6, marginBottom: 8 }}>
+                <div className="small muted" style={{ color: 'var(--brand)', fontWeight: 600 }}>Project Description</div>
+                <p className="small" style={{ color: 'var(--ink)', margin: '2px 0 0 0' }}>{team.description}</p>
+              </div>
+            ) : null}
             <div className="small muted">Project{teamProjectList.length === 1 ? '' : 's'}</div>
             {teamProjectList.length
               ? teamProjectList.map((project) => <div className="team-project-summary" key={project._id}>
                 <b>{project.name}</b>
                 <p className="small muted">{project.description || 'No project description yet.'}</p>
               </div>)
-              : <div className="team-project-summary"><b>No project assigned</b><p className="small muted">Project description unavailable.</p></div>}
+              : !team.description && <div className="team-project-summary"><b>No project assigned</b><p className="small muted">Project description unavailable.</p></div>}
             <div className="team-summary-progress">
               <div className="small muted">{teamDone}/{teamTaskList.length} tasks completed</div>
               <Bar pct={teamProgress} />
             </div>
-          </button>;
+          </div>;
         })}
       </div>
       {isAdmin && unassigned.length > 0 && <details className="card team-unassigned">
@@ -118,7 +188,19 @@ export default function Teams() {
           <span className="team-color-dot" style={{ background: selectedTeam.color }} />
           <h2>{selectedTeam.name}</h2>
           <span className="team-summary-percent">{progress(teamTasks(selectedTeam))}%</span>
+          {isAdmin && (
+            <TeamMenu team={selectedTeam}
+              onRename={(t) => setModal({ kind: 'rename', team: t })}
+              onDelete={(t) => setModal({ kind: 'confirmDelete', team: t })}
+            />
+          )}
         </div>
+        {selectedTeam.description && (
+          <div style={{ marginTop: 8, marginBottom: 12, padding: '10px 14px', background: 'rgba(212,178,106,.06)', borderLeft: '3px solid var(--brand)', borderRadius: 6 }}>
+            <div className="small" style={{ color: 'var(--brand)', fontWeight: 600 }}>Project Description</div>
+            <p className="small" style={{ color: 'var(--ink)', margin: '4px 0 0 0' }}>{selectedTeam.description}</p>
+          </div>
+        )}
         {selectedTeam.focus && <p className="small muted">{selectedTeam.focus}</p>}
         <div className="team-summary-progress">
           <div className="small muted">
@@ -133,7 +215,12 @@ export default function Teams() {
               <h4>{project.name}</h4>
               <p className="muted">{project.description || 'No project description yet.'}</p>
             </article>
-          )) : <p className="muted">No project has been assigned to this team yet.</p>}
+          )) : selectedTeam.description ? (
+            <article className="team-project-detail">
+              <h4>Project Details</h4>
+              <p className="muted">{selectedTeam.description}</p>
+            </article>
+          ) : <p className="muted">No project has been assigned to this team yet.</p>}
         </div>
         {!selectedMember && <div className="team-project-details">
           <h3>Task progress by date</h3>
@@ -211,8 +298,19 @@ export default function Teams() {
     {modal?.kind === 'profile' && <ProfileModal userId={modal.id} onClose={() => setModal(null)} />}
     {modal?.kind === 'team' && <Modal title="New team" okLabel="Create" onClose={() => setModal(null)} onSubmit={create}>
       <label className="f">Team name<input name="name" required placeholder="Team Epsilon" /></label>
-      <div className="row2"><label className="f">Focus area<input name="focus" placeholder="Cloud & DevOps" /></label><label className="f">Colour<input name="color" type="color" defaultValue="#7c3aed" /></label></div>
+      <div className="row2"><label className="f">Focus area<input name="focus" placeholder="Cloud & DevOps" /></label><label className="f">Colour<input name="color" type="color" defaultValue="#d4b26a" /></label></div>
+      <label className="f">Project Description<textarea name="description" rows="3" placeholder="Brief description of this team's project or goals..." /></label>
     </Modal>}
+    {modal?.kind === 'rename' && <Modal title="Change team name & details" okLabel="Save" onClose={() => setModal(null)} onSubmit={renameTeam}>
+      <label className="f">Team name<input name="name" required defaultValue={modal.team.name} /></label>
+      <div className="row2"><label className="f">Focus area<input name="focus" defaultValue={modal.team.focus} /></label><label className="f">Colour<input name="color" type="color" defaultValue={modal.team.color || '#d4b26a'} /></label></div>
+      <label className="f">Project Description<textarea name="description" rows="3" defaultValue={modal.team.description} placeholder="Brief description of this team's project or goals..." /></label>
+    </Modal>}
+    {modal?.kind === 'confirmDelete' && (
+      <Modal title="Delete team" okLabel="Delete" onClose={() => setModal(null)} onSubmit={deleteTeam}>
+        <p>Are you sure you want to delete <b>{modal.team.name}</b>? Members will become unassigned. This cannot be undone.</p>
+      </Modal>
+    )}
     {modal?.kind === 'rate' && <Modal title={'Rate ' + modal.user.name} okLabel="Save" onClose={() => setModal(null)} onSubmit={rate}>
       <label className="f">Rating (0-5)<input name="rating" type="number" min="0" max="5" step="0.1" defaultValue={modal.user.rating || 4} required /></label>
       <label className="f">Feedback (the intern sees this)<textarea name="feedback" rows="4" defaultValue={modal.user.feedback} /></label>

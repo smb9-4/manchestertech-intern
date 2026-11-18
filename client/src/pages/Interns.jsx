@@ -52,7 +52,16 @@ export default function Interns() {
             <td>
               {u.team?.name ? u.team.name : (
                 <select
-                  style={{ background: 'transparent', border: '1px solid #22c55e', color: '#22c55e', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer' }}
+                  style={{
+                    background: 'rgba(212, 178, 106, 0.08)',
+                    border: '1px solid var(--brand)',
+                    color: 'var(--brand)',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
                   defaultValue=""
                   onChange={async (e) => {
                     if (!e.target.value) return;
@@ -61,8 +70,8 @@ export default function Interns() {
                     e.target.value = '';
                   }}
                 >
-                  <option value="">+ Add to team</option>
-                  {teams.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                  <option value="" style={{ background: '#141416', color: 'var(--brand)' }}>+ Add to team</option>
+                  {teams.map((t) => <option key={t._id} value={t._id} style={{ background: '#141416', color: 'var(--ink)' }}>{t.name}</option>)}
                 </select>
               )}
             </td><td>{projectsFor(u._id).join(', ') || '-'}</td><td><AttPill s={attendanceByUser.get(u._id)?.status} /></td><td className="muted">{u.college || '-'}</td>
