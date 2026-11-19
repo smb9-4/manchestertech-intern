@@ -52,7 +52,14 @@ router.patch('/:id', async (req, res) => {
     if ('active' in b) target.active = !!b.active;
     if ('team' in b) {
       const led = await Team.findOne({ leader: target._id });
-      if (led && String(led._id) !== String(b.team)) return res.status(400).json({ error: 'This person leads a team. Pick a new leader first.' });
+      if (led && String(led._id) !== String(b.team)) {
+        if (!b.team) {
+          led.leader = null;
+          await led.save();
+        } else {
+          return res.status(400).json({ error: 'This person leads a team. Pick a new leader first.' });
+        }
+      }
       target.team = b.team || null;
     }
     if ('role' in b) {
@@ -65,6 +72,16 @@ router.patch('/:id', async (req, res) => {
     }
   } else if (me.role === 'leader' && String(target.team) === String(me.team) && String(target._id) !== String(me._id)) {
     for (const k of ['rating', 'feedback']) if (k in b) target[k] = b[k];
+    if ('team' in b) {
+      if (target.role !== 'intern') return res.status(403).json({ error: 'Leaders can only manage interns' });
+      if (b.team === null || b.team === '' || String(b.team) === String(me.team)) {
+        target.team = b.team || null;
+      } else {
+        return res.status(403).json({ error: 'Leaders cannot assign members to other teams' });
+      }
+    }
+  } else if (me.role === 'leader' && !target.team && String(b.team) === String(me.team)) {
+    target.team = me.team;
   } else if (String(target._id) === String(me._id)) {
     for (const k of ['name', 'college', 'phone']) if (k in b) target[k] = b[k];
   } else return res.status(403).json({ error: 'Not allowed' });

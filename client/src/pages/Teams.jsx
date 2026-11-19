@@ -77,6 +77,12 @@ export default function Teams() {
   const teamTasks = (team) => tasks.filter((task) => taskTeamId(task) === team._id);
   const completedTasks = (items) => items.filter((task) => task.status === 'approved').length;
   const progress = (items) => items.length ? Math.round((completedTasks(items) / items.length) * 100) : 0;
+  const canRemove = (person) => {
+    if (!person) return false;
+    if (isAdmin) return true;
+    if (isLeader) return person.role === 'intern' && person._id !== user._id;
+    return false;
+  };
 
   const teamId = searchParams.get('team');
   const memberId = searchParams.get('member');
@@ -255,6 +261,7 @@ export default function Teams() {
               onClick={() => run(() => api('/teams/' + selectedTeam._id, { method: 'PATCH', body: { leader: person._id } }), `${person.name} is now leader`)}>Make leader</button>}
             {(isAdmin || isLeader) && <button className="btn ghost sm team-member-action" onClick={() => setModal({ kind: 'profile', id: person._id })}>Profile</button>}
             {(isAdmin || (isLeader && person._id !== user._id)) && <button className="btn ghost sm team-member-action" onClick={() => setModal({ kind: 'rate', user: person })}>Rate</button>}
+            {canRemove(person) && <button className="btn ghost sm team-member-action" style={{ color: '#f87171' }} onClick={() => setModal({ kind: 'removeMember', user: person, team: selectedTeam })}>Remove</button>}
           </div>;
         })}</div> : <Empty>No members in this team yet.</Empty>}
       </section>}
@@ -268,6 +275,7 @@ export default function Teams() {
           </div>
           {(isAdmin || isLeader) && <button className="btn ghost sm" onClick={() => setModal({ kind: 'profile', id: selectedMember._id })}>Profile</button>}
           {(isAdmin || (isLeader && selectedMember._id !== user._id)) && <button className="btn ghost sm" onClick={() => setModal({ kind: 'rate', user: selectedMember })}>Rate</button>}
+          {canRemove(selectedMember) && <button className="btn ghost sm" style={{ color: '#f87171' }} onClick={() => setModal({ kind: 'removeMember', user: selectedMember, team: selectedTeam })}>Remove</button>}
         </div>
         <div style={{ marginTop: 12 }}><Bar pct={memberProgress} /></div>
         {memberTasks.length
@@ -309,6 +317,25 @@ export default function Teams() {
     {modal?.kind === 'confirmDelete' && (
       <Modal title="Delete team" okLabel="Delete" onClose={() => setModal(null)} onSubmit={deleteTeam}>
         <p>Are you sure you want to delete <b>{modal.team.name}</b>? Members will become unassigned. This cannot be undone.</p>
+      </Modal>
+    )}
+    {modal?.kind === 'removeMember' && (
+      <Modal
+        title="Remove from team"
+        okLabel="Remove"
+        onClose={() => setModal(null)}
+        onSubmit={async () => {
+          await api('/users/' + modal.user._id, { method: 'PATCH', body: { team: null } });
+          setModal(null);
+          if (memberId === modal.user._id) showTeamMembers();
+          reload();
+          toast(`${modal.user.name} removed from ${modal.team.name}`);
+        }}
+      >
+        <p>Remove <b>{modal.user.name}</b> from <b>{modal.team.name}</b>?</p>
+        <p className="small muted" style={{ marginTop: 8 }}>
+          They will become unassigned and remain in the portal. You can reassign them anytime from the Interns or Teams page.
+        </p>
       </Modal>
     )}
     {modal?.kind === 'rate' && <Modal title={'Rate ' + modal.user.name} okLabel="Save" onClose={() => setModal(null)} onSubmit={rate}>
